@@ -566,6 +566,54 @@ class FailureTest {
 
     @ParameterizedTest
     @EnumSource(Target::class)
+    // TODO this should be allowed and moved to another test class
+    fun fails_if_child_and_parent_components_use_the_same_scope(target: Target) {
+        val projectCompiler = ProjectCompiler(target, workingDir)
+        assertThat {
+            projectCompiler.source(
+                "MyComponent.kt",
+                """
+                import me.tatarka.inject.annotations.Component
+                import me.tatarka.inject.annotations.Inject
+                import me.tatarka.inject.annotations.Provides
+                import me.tatarka.inject.annotations.Scope
+                import kotlin.annotation.Target
+                import kotlin.annotation.AnnotationTarget.CLASS
+                import kotlin.annotation.AnnotationTarget.FUNCTION
+                import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
+                
+                @Scope
+                @Target(CLASS, FUNCTION, PROPERTY_GETTER)
+                annotation class MyScope
+
+                class A
+                
+                class B
+
+                @Component
+                @MyScope
+                abstract class ParentComponent {                
+                   @Provides
+                   fun providesA() = A()
+                }
+               
+                @Component
+                @MyScope
+                abstract class ChildComponent(@Component val parent: ParentComponent) {
+                   @Provides
+                   fun providesB() = B()
+                }
+                """.trimIndent()
+            ).compile()
+        }.isFailure().output().all {
+            contains(
+                "Cannot apply scope: MyScope, as scope: MyScope is already applied to parent"
+            )
+        }
+    }
+
+    @ParameterizedTest
+    @EnumSource(Target::class)
     fun fails_if_provides_has_scope_in_an_unscoped_component(target: Target) {
         val projectCompiler = ProjectCompiler(target, workingDir)
         assertThat {
