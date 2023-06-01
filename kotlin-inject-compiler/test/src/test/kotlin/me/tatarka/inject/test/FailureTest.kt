@@ -4,6 +4,7 @@ import assertk.all
 import assertk.assertThat
 import assertk.assertions.contains
 import assertk.assertions.isFailure
+import assertk.assertions.isSuccess
 import me.tatarka.inject.ProjectCompiler
 import me.tatarka.inject.Target
 import me.tatarka.inject.compiler.Options
@@ -513,6 +514,54 @@ class FailureTest {
                 "@Provides method is not accessible"
             )
         }
+    }
+
+    @ParameterizedTest
+    @EnumSource(Target::class)
+    fun fails_if_dependency_in_super_component_needs_another_from_implementation_component(target: Target) {
+        val projectCompiler = ProjectCompiler(target, workingDir)
+        assertThat {
+            projectCompiler.source(
+                "MyComponent.kt",
+                """
+                import me.tatarka.inject.annotations.Component
+                import me.tatarka.inject.annotations.Inject
+                import me.tatarka.inject.annotations.Provides
+                import me.tatarka.inject.annotations.Scope
+                import kotlin.annotation.Target
+                import kotlin.annotation.AnnotationTarget.CLASS
+                import kotlin.annotation.AnnotationTarget.FUNCTION
+                import kotlin.annotation.AnnotationTarget.PROPERTY_GETTER
+                
+                @Scope
+                @Target(CLASS, FUNCTION, PROPERTY_GETTER)
+                annotation class MyScope
+
+                class A
+                
+                @Inject
+                class B(val a: A)
+
+                @MyScope
+                abstract class SuperComponent {                
+                   @Provides abstract fun providesA() : A
+                }
+               
+                @Component
+                abstract class ImplementationComponent: SuperComponent() {
+                   abstract val b : B
+                
+                   override fun providesA() = A()
+                }
+                """.trimIndent()
+            ).compile()
+        }.isSuccess()
+        // TODO this should be allowed and moved to another test class
+//        }.isFailure().output().all {
+//            contains(
+//                "@Provides method is not accessible"
+//            )
+//        }
     }
 
     @ParameterizedTest
